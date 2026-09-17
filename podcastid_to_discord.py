@@ -28,7 +28,7 @@ Logod (avatar_url)
 -----------------------
 Discordi webhook API lubab iga postituse juures eraldi määrata nii
 "username" kui "avatar_url" - seega POLE vaja eraldi webhooki iga
-saate jaoks, piisab ühest. Logod on laetud repo "slax-vsg/podcast-bot"
+saate jaoks, piisab ühest. Logod on laetud repo "slax-svg/podcast-bot"
 kausta "logos/" ja neile viidatakse raw.githubusercontent.com kaudu.
 
 NB: "mängumehed.webp" failinimi sisaldab täpitähte "ä", mistõttu link
@@ -76,16 +76,16 @@ WEBHOOK_URL = os.environ.get(
     "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
 )
 
-# Logod laetud repost slax-vsg/podcast-bot, kaustast logos/, harust "main".
+# Logod laetud repost slax-svg/podcast-bot, kaustast logos/, harust "main".
 # Kui su vaikeharu kannab teist nime (nt "master"), muuda "main" vastavalt.
 LOGO_URLS = {
-    "Unibet Stuudio": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/unibet.jpg",
+    "Unibet Stuudio": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/unibet.jpg",
     # "ä" on lingis URL-encoded kujul (%C3%A4). Kui nimetad faili ümber
     # ilma täpitähtedeta (nt mangumehed.webp), saad kasutada lihtsamat
     # kuju: .../logos/mangumehed.webp
-    "Mängumehed": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/m%C3%A4ngumehed.webp",
-    "Pall ei valeta": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/palleivaleta.jpg",
-    "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/pihtas.png",
+    "Mängumehed": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/m%C3%A4ngumehed.webp",
+    "Pall ei valeta": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/palleivaleta.jpg",
+    "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/pihtas.png",
 }
 
 REQUEST_HEADERS = {
