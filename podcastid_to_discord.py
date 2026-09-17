@@ -1,37 +1,47 @@
 """
 Korvpallipodcastid -> Discord webhook poster (üks skript, üks webhook)
 ---------------------------------------------------------------------------
-Jälgib viit erinevat korvpalli(ga seotud) podcasti/kanalit ja postitab
-uued episoodid Discordi, kõik läbi ÜHE webhooki. Iga allikas eristub
-Discordis oma "username" ja embed-värvi kaudu.
+Jälgib nelja korvpalli(ga seotud) podcasti ja postitab uued episoodid
+Discordi, kõik läbi ÜHE webhooki. Iga allikas eristub Discordis oma
+"username" JA "avatar_url" (oma logo) kaudu.
+
+Postitusse läheb ainult PEALKIRI (+ link) - kirjeldus/body text on
+teadlikult eemaldatud, et Discordi kaart oleks lühike ja selge.
 
 Allikad:
   1. Unibet Stuudio   - anchor.fm RSS, filtreeritud "#Korvpall" sildi järgi
                         (saates on ka jalgpalli episoode - "Jalkasaade" -
-                        mida me EI taha, seega ei kasuta enam pealkirja
-                        kontrolli, vaid otsime kirjeldusest hashtagi
+                        mida me EI taha, seega otsime kirjeldusest hashtagi
                         "#Korvpall", mille Unibet Stuudio ise lisab igale
                         korvpalli-episoodile).
   2. Mängumehed       - anchor.fm RSS, puhtalt korvpallipodcast, kõik
                         episoodid postitatakse.
-  3. Pall ei valeta   - Delfi enda RSS-i-taolinen API, puhtalt
+  3. Pall ei valeta   - Delfi enda RSS-i-taoline API, puhtalt
                         korvpallipodcast, kõik episoodid postitatakse.
-  4. Kuues Viga (NBA) - Spotify'l avalikku RSS'i ei ole (Spotify-only
-                        hostimine), seega kasutame YouTube-kanali enda
-                        avalikku video-RSS'i (ei vaja autentimist).
-  5. Pihtas-põhjas    - Delfil pole avalikku RSS'i (audio on Tasku
+  4. Pihtas-põhjas    - Delfil pole avalikku RSS'i (audio on Tasku
                         tellimuse taga), seega loeme nende AVALIKKU
                         kategoorialehte (HTML), mis näitab iga uue
                         episoodi anonss-artiklit. Postitame ainult
                         pealkirja + lingi, mitte audiot.
+
+Logod (avatar_url)
+-----------------------
+Discordi webhook API lubab iga postituse juures eraldi määrata nii
+"username" kui "avatar_url" - seega POLE vaja eraldi webhooki iga
+saate jaoks, piisab ühest. Logod on laetud repo "slax-vsg/podcast-bot"
+kausta "logos/" ja neile viidatakse raw.githubusercontent.com kaudu.
+
+NB: "mängumehed.webp" failinimi sisaldab täpitähte "ä", mistõttu link
+allpool kasutab URL-encoded kuju ("m%C3%A4ngumehed.webp"). Kui nimetad
+faili oma repos ümber ilma täpitähtedeta (nt "mangumehed.webp"), saad
+lingi lihtsustada - vt kommentaari LOGO_URLS juures.
 
 Miks "esimesel käivitusel ainult viimane uus episood"
 ----------------------------------------------------------
 Kui mõne allika jaoks pole veel seen_ids faili (uus allikas), siis
 esimesel käivitusel EI postitata kogu olemasolevat episoodide ajalugu -
 ainult kõige uuem episood postitatakse, ülejäänud märgitakse vaikselt
-"juba nähtuks". Nii ei upu Discordi kanal esimesel käivitusel
-kümnete vanade episoodidega.
+"juba nähtuks".
 
 Miks iga allikas on eraldi try/except sees
 -----------------------------------------------
@@ -39,14 +49,6 @@ Kui üks allikas ebaõnnestub (nt Delfi muudab oma lehe struktuuri, või
 mõni server ajutiselt ei vasta), ei tohi see takistada teiste allikate
 postitamist. Viga logitakse selgelt, aga skript jätkab järgmise
 allikaga.
-
-Miks kõiki kontrollitakse iga 6h tagant
---------------------------------------------
-Vt kaasasolevat .yml faili - üks ühtne ajakava kõigile viiele allikale,
-lihtsuse huvides. Pihtas-põhjas ilmub tavaliselt pühapäeva õhtul kell
-~21:46, seega 6h kontrollisagedusega võib see avastatuks saada kuni
-mõni tund hiljem - see on aktsepteeritav, kuna tegu pole kiireloomulise
-sisuga.
 
 Setup
 -----
@@ -74,6 +76,18 @@ WEBHOOK_URL = os.environ.get(
     "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
 )
 
+# Logod laetud repost slax-vsg/podcast-bot, kaustast logos/, harust "main".
+# Kui su vaikeharu kannab teist nime (nt "master"), muuda "main" vastavalt.
+LOGO_URLS = {
+    "Unibet Stuudio": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/unibet.jpg",
+    # "ä" on lingis URL-encoded kujul (%C3%A4). Kui nimetad faili ümber
+    # ilma täpitähtedeta (nt mangumehed.webp), saad kasutada lihtsamat
+    # kuju: .../logos/mangumehed.webp
+    "Mängumehed": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/m%C3%A4ngumehed.webp",
+    "Pall ei valeta": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/palleivaleta.jpg",
+    "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-vsg/podcast-bot/main/logos/pihtas.png",
+}
+
 REQUEST_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -85,7 +99,6 @@ REQUEST_HEADERS = {
 
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 15
-DESCRIPTION_MAX_LENGTH = 300
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -129,16 +142,9 @@ def clean_description(raw):
     return HTML_TAG_RE.sub("", raw).strip()
 
 
-def truncate_description(text, max_length=DESCRIPTION_MAX_LENGTH):
-    if not text or len(text) <= max_length:
-        return text
-    cut = text[:max_length].rsplit(" ", 1)[0].rstrip(".,;: ")
-    return f"{cut}..."
-
-
 def fetch_url(url, accept_header=None):
     """Laeb URL'i alla, korduskatsetega. Tagastab (content_bytes, status)
-    või (None, None), kui kõik katsed ebaõnnestusid."""
+    või viskab RuntimeError'i, kui kõik katsed ebaõnnestusid."""
     headers = dict(REQUEST_HEADERS)
     if accept_header:
         headers["Accept"] = accept_header
@@ -178,6 +184,8 @@ def classify_new(items, seen, is_first_run):
 
 
 def post_to_discord(item, username, color):
+    # Ainult pealkiri (+ link) - kirjeldus/body text jäetakse teadlikult
+    # postitusest välja, et Discordi kaart oleks lühike ja selge.
     embed = {
         "title": item["title"],
         "url": item.get("link", ""),
@@ -189,6 +197,11 @@ def post_to_discord(item, username, color):
     embed["footer"] = {"text": footer_text}
 
     payload = {"username": username, "embeds": [embed]}
+
+    logo_url = LOGO_URLS.get(username, "")
+    if logo_url and "PASTE_" not in logo_url:
+        payload["avatar_url"] = logo_url
+
     r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
     if r.status_code >= 300:
         print(f"    ! Discordi postitus ebaõnnestus ({r.status_code}): {r.text[:200]}")
@@ -197,7 +210,7 @@ def post_to_discord(item, username, color):
 
 
 # ----------------------------------------------------------------------
-# RSS/ATOM-PÕHISED ALLIKAD (Unibet Stuudio, Mängumehed, Pall ei valeta, Kuues Viga)
+# RSS/ATOM-PÕHISED ALLIKAD (Unibet Stuudio, Mängumehed, Pall ei valeta)
 # ----------------------------------------------------------------------
 def fetch_rss_items(feed_url, filter_func=None, debug=True):
     content, status = fetch_url(feed_url, accept_header="application/rss+xml, application/atom+xml, application/xml, */*")
@@ -223,7 +236,6 @@ def fetch_rss_items(feed_url, filter_func=None, debug=True):
             "id": item_id,
             "title": title,
             "link": entry.get("link", ""),
-            "description": truncate_description(summary) if summary else "",
             "date": strip_timezone(entry.get("published", "")),
         })
     return items
@@ -259,7 +271,7 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
             continue
         seen_links.add(href)
 
-        items.append({"id": href, "title": title, "link": href, "description": "", "date": None})
+        items.append({"id": href, "title": title, "link": href, "date": None})
 
     if debug:
         print(f"    HTML status: {status}, leitud artikleid: {len(items)}")
@@ -294,14 +306,6 @@ SOURCES = [
         "filter": None,
         "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_pallteivaleta.json"),
         "color": 0xE84118,
-    },
-    {
-        "name": "Kuues Viga",
-        "type": "rss",
-        "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC32OZ0maQSJzsGD57TgDkgg",
-        "filter": None,
-        "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_kuuesviga.json"),
-        "color": 0xFF0000,
     },
     {
         "name": "Pihtas-põhjas",
