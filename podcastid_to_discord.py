@@ -183,8 +183,6 @@ def post_to_discord(item, username, color):
         "url": item.get("link", ""),
         "color": color,
     }
-    if item.get("description"):
-        embed["description"] = item["description"]
     footer_text = username
     if item.get("date"):
         footer_text += f" | {item['date']}"
