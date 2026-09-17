@@ -1,0 +1,23 @@
+name: Korvpallipodcastid to Discord
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # iga 6h, kõigile viiele allikale ühtemoodi
+  workflow_dispatch: {}
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install feedparser requests beautifulsoup4
+      - env:
+          DISCORD_WEBHOOK_URL_PODCASTS: ${{ secrets.DISCORD_WEBHOOK_URL_PODCASTS }}
+        run: python podcastid_to_discord.py
+      - name: Save seen_ids files between runs
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "update podcastide seen ids"
+          file_pattern: "seen_ids_*.json"
