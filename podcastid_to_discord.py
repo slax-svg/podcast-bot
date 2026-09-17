@@ -83,7 +83,7 @@ LOGO_URLS = {
     # "ä" on lingis URL-encoded kujul (%C3%A4). Kui nimetad faili ümber
     # ilma täpitähtedeta (nt mangumehed.webp), saad kasutada lihtsamat
     # kuju: .../logos/mangumehed.webp
-    "Mängumehed": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/m%C3%A4ngumehed.webp",
+    "Mängumehed": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/mangumehed.png",
     "Pall ei valeta": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/palleivaleta.jpg",
     "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/pihtas.png",
 }
