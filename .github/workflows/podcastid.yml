@@ -1,7 +1,7 @@
 name: Korvpallipodcastid to Discord
 on:
-  schedule:
-    - cron: "0 */6 * * *"   # iga 12h, kõigile viiele allikale ühtemoodi
+  # schedule:
+    # - cron: "0 */6 * * *"   - # käivitamine toimub nüüd cron-job.org kaudu
   workflow_dispatch: {}
 
 jobs:
