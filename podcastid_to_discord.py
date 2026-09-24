@@ -67,6 +67,7 @@ import os
 import re
 import json
 import time
+from datetime import datetime
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -296,6 +297,65 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
     return items
 
 
+def _format_iso_date(raw):
+    """'2026-09-23T14:30:00+03:00' -> 'Wed, 23 Sep 2026 14:30:00'
+    (sama kuju nagu RSS-allikatel, ilma ajavööndita). None, kui ei parsi."""
+    if not raw:
+        return None
+    raw = raw.strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return dt.strftime("%a, %d %b %Y %H:%M:%S")
+
+
+def fetch_article_date(url):
+    """Loeb Delfi artikli enda lehelt avaldamise kuupäeva. Kutsutakse ainult
+    UUTE artiklite peale (tavaliselt 0-1 tk käivituse kohta), mitte kogu
+    kategoorialehe kohta. Proovib järjest: meta-tagid, <time datetime>,
+    JSON-LD 'datePublished'. Tagastab None, kui midagi ei leia - siis
+    postitatakse ilma kuupäevata (nagu enne)."""
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            print(f"    ! Kuupäeva laadimine ebaõnnestus ({resp.status_code}): {url}")
+            return None
+        soup = BeautifulSoup(resp.content, "html.parser")
+    except requests.RequestException as e:
+        print(f"    ! Kuupäeva laadimine ebaõnnestus ({e}): {url}")
+        return None
+
+    candidates = []
+    for attrs in (
+        {"property": "article:published_time"},
+        {"itemprop": "datePublished"},
+        {"name": "article:published_time"},
+        {"name": "pubdate"},
+        {"property": "og:article:published_time"},
+    ):
+        tag = soup.find("meta", attrs=attrs)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"])
+
+    time_tag = soup.find("time", attrs={"datetime": True})
+    if time_tag:
+        candidates.append(time_tag["datetime"])
+
+    for script in soup.find_all("script", type="application/ld+json"):
+        m = re.search(r'"datePublished"\s*:\s*"([^"]+)"', script.string or "")
+        if m:
+            candidates.append(m.group(1))
+
+    for raw in candidates:
+        formatted = _format_iso_date(raw)
+        if formatted:
+            return formatted
+
+    print(f"    ! Kuupäeva ei leitud artiklilt: {url}")
+    return None
+
+
 # ----------------------------------------------------------------------
 # ALLIKATE MÄÄRATLUS
 # ----------------------------------------------------------------------
@@ -361,6 +421,13 @@ def process_source(source):
 
     new_ones = classify_new(items, seen, is_first_run)
     print(f"    Uusi postitatavaid: {len(new_ones)}")
+
+    # HTML-allika kategoorialehel kuupäeva pole - loeme selle uute artiklite
+    # enda lehelt (ainult postitatavate kohta).
+    if source["type"] == "html":
+        for item in new_ones:
+            if not item.get("date"):
+                item["date"] = fetch_article_date(item["link"])
 
     for item in reversed(new_ones):  # vanim enne
         post_to_discord(item, username=source["name"], color=source["color"])
