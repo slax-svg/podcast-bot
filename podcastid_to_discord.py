@@ -1,7 +1,7 @@
 """
 Korvpallipodcastid -> Discord webhook poster (üks skript, üks webhook)
 ---------------------------------------------------------------------------
-Jälgib nelja korvpalli(ga seotud) podcasti ja postitab uued episoodid
+Jälgib viit korvpalli(ga seotud) podcasti ja postitab uued episoodid
 Discordi, kõik läbi ÜHE webhooki. Iga allikas eristub Discordis oma
 "username" JA "avatar_url" (oma logo) kaudu.
 
@@ -23,6 +23,9 @@ Allikad:
                         kategoorialehte (HTML), mis näitab iga uue
                         episoodi anonss-artiklit. Postitame ainult
                         pealkirja + lingi, mitte audiot.
+  5. Viies veerandaeg - Õhtulehe korvpallisaade, anchor.fm (Spotify for
+                        Creators) RSS, puhtalt korvpallipodcast, kõik
+                        episoodid postitatakse.
 
 Logod (avatar_url)
 -----------------------
@@ -86,6 +89,7 @@ LOGO_URLS = {
     "Mängumehed": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/mangumehed.png",
     "Pall ei valeta": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/palleivaleta.jpg",
     "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/pihtas.png",
+    "Viies veerandaeg": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/viiesveerandaeg.jpg",
 }
 
 REQUEST_HEADERS = {
@@ -248,6 +252,19 @@ def unibet_korvpall_filter(title, description):
     return "#korvpall" in description.lower()
 
 
+EPISODE_NUM_RE = re.compile(r"^\s*(\d+)\.\s*osa", re.IGNORECASE)
+VIIES_VEERANDAEG_MIN_EPISODE = 255  # 255+ on seen_ids failis; vanemad (<255) ignoreeritakse
+
+
+def viies_veerandaeg_filter(title, description):
+    """Feedis on sadu vanu episoode, mille id-sid me seen-faili ei pannud.
+    Et need ei tuleks 'uutena' postitusse, lubame ainult episoodid
+    numbriga >= VIIES_VEERANDAEG_MIN_EPISODE (pealkiri: '284. osa: ...').
+    Numbrita pealkirjaga episoodid jäetakse vahele."""
+    m = EPISODE_NUM_RE.match(title)
+    return bool(m) and int(m.group(1)) >= VIIES_VEERANDAEG_MIN_EPISODE
+
+
 # ----------------------------------------------------------------------
 # HTML-PÕHINE ALLIKAS (Pihtas-põhjas - avalik Delfi kategoorialeht)
 # ----------------------------------------------------------------------
@@ -313,6 +330,14 @@ SOURCES = [
         "url": "https://sport.delfi.ee/kategooria/120000743/pihtas-pohjas",
         "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_pihtaspohjas.json"),
         "color": 0x9B59B6,
+    },
+    {
+        "name": "Viies veerandaeg",
+        "type": "rss",
+        "url": "https://anchor.fm/s/fdf19c28/podcast/rss",
+        "filter": viies_veerandaeg_filter,
+        "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_viiesveerandaeg.json"),
+        "color": 0xF39C12,
     },
 ]
 
