@@ -105,6 +105,11 @@ REQUEST_HEADERS = {
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 15
 
+# Maksimaalselt mitu episoodi postitatakse ühe allika kohta ühe käivituse
+# jooksul. Kui uusi on rohkem (nt aegunud seen-fail), postitatakse ainult
+# kõige uuem ja ülejäänud märgitakse vaikselt "nähtuks".
+MAX_NEW_PER_RUN = 1
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 DELFI_ARTICLE_LINK_RE = re.compile(r"/(?:artikkel|video)/\d{6,}")
@@ -185,6 +190,13 @@ def classify_new(items, seen, is_first_run):
     new_ones = [item for item in items if item["id"] not in seen]
     for item in new_ones:
         seen.add(item["id"])
+
+    if len(new_ones) > MAX_NEW_PER_RUN:
+        print(
+            f"    ! {len(new_ones)} uut korraga - postitan ainult {MAX_NEW_PER_RUN} "
+            f"uusimat, ülejäänud märgitud nähtuks."
+        )
+        return new_ones[:MAX_NEW_PER_RUN]
     return new_ones
 
 
@@ -281,6 +293,11 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
             continue
         if href.startswith("/"):
             href = "https://sport.delfi.ee" + href
+
+        # Ainult sport.delfi.ee artiklid - muud domeenid (nt tv.delfi.ee
+        # anonsid) ei ole podcasti episoodid.
+        if not href.startswith("https://sport.delfi.ee/"):
+            continue
 
         title = a_tag.get_text(strip=True)
         if not title or len(title) < 10:
