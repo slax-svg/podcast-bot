@@ -67,7 +67,8 @@ import os
 import re
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -110,6 +111,13 @@ RETRY_DELAY_SECONDS = 15
 # kõige uuem ja ülejäänud märgitakse vaikselt "nähtuks".
 MAX_NEW_PER_RUN = 1
 
+# Postitatakse ainult episoode, mis on avaldatud viimase N tunni jooksul.
+# Vanemad märgitakse vaikselt nähtuks. See on tagavara juhuks, kui seen-fail
+# peaks mingil põhjusel kaduma või ID-d ei klapi - vanad episoodid ei jõua
+# siis Discordi. Kui kuupäeva ei õnnestu kindlaks teha, postitatakse nagu
+# varem.
+MAX_AGE_HOURS = 48
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 DELFI_ARTICLE_LINK_RE = re.compile(r"/(?:artikkel|video)/\d{6,}")
@@ -118,6 +126,15 @@ DELFI_ARTICLE_LINK_RE = re.compile(r"/(?:artikkel|video)/\d{6,}")
 # ----------------------------------------------------------------------
 # ÜLDISED ABIFUNKTSIOONID
 # ----------------------------------------------------------------------
+def normalize_url(url):
+    """Eemaldab URL-ilt päringuparameetrid ja fragmendi (nt Delfi
+    '?dsrc=...' jälgimisparameeter). Sama artikkel tuleb Delfi lehelt
+    vahel lingina koos sabaga, vahel ilma - ilma normaliseerimiseta
+    loeks skript neid erinevateks artikliteks ja postitaks uuesti."""
+    parts = urlsplit(url.strip())
+    return f"{parts.scheme}://{parts.netloc}{parts.path}".rstrip("/")
+
+
 def load_seen(seen_file):
     """Tagastab (seen_set, is_first_run). is_first_run=True, kui faili
     veel polnud olemas või see oli tühi - sel juhul postitame edaspidi
@@ -249,11 +266,16 @@ def fetch_rss_items(feed_url, filter_func=None, debug=True):
         if not item_id:
             continue
 
+        dt = None
+        if entry.get("published_parsed"):
+            dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+
         items.append({
             "id": item_id,
             "title": title,
             "link": entry.get("link", ""),
             "date": strip_timezone(entry.get("published", "")),
+            "dt": dt,
         })
     return items
 
@@ -293,6 +315,7 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
             continue
         if href.startswith("/"):
             href = "https://sport.delfi.ee" + href
+        href = normalize_url(href)  # eemalda ?dsrc=... jm
 
         # Ainult sport.delfi.ee artiklid - muud domeenid (nt tv.delfi.ee
         # anonsid) ei ole podcasti episoodid.
@@ -306,12 +329,26 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
             continue
         seen_links.add(href)
 
-        items.append({"id": href, "title": title, "link": href, "date": None})
+        items.append({"id": href, "title": title, "link": href, "date": None, "dt": None})
 
     if debug:
         print(f"    HTML status: {status}, leitud artikleid: {len(items)}")
 
     return items
+
+
+def _parse_iso(raw):
+    """ISO-kuupäev -> ajavööndiga datetime. None, kui ei parsi."""
+    if not raw:
+        return None
+    raw = raw.strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _format_iso_date(raw):
@@ -331,17 +368,17 @@ def fetch_article_date(url):
     """Loeb Delfi artikli enda lehelt avaldamise kuupäeva. Kutsutakse ainult
     UUTE artiklite peale (tavaliselt 0-1 tk käivituse kohta), mitte kogu
     kategoorialehe kohta. Proovib järjest: meta-tagid, <time datetime>,
-    JSON-LD 'datePublished'. Tagastab None, kui midagi ei leia - siis
-    postitatakse ilma kuupäevata (nagu enne)."""
+    JSON-LD 'datePublished'. Tagastab (kuvatav_tekst, datetime) või
+    (None, None), kui midagi ei leia - siis postitatakse ilma kuupäevata."""
     try:
         resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
         if resp.status_code != 200:
             print(f"    ! Kuupäeva laadimine ebaõnnestus ({resp.status_code}): {url}")
-            return None
+            return None, None
         soup = BeautifulSoup(resp.content, "html.parser")
     except requests.RequestException as e:
         print(f"    ! Kuupäeva laadimine ebaõnnestus ({e}): {url}")
-        return None
+        return None, None
 
     candidates = []
     for attrs in (
@@ -366,11 +403,12 @@ def fetch_article_date(url):
 
     for raw in candidates:
         formatted = _format_iso_date(raw)
-        if formatted:
-            return formatted
+        dt = _parse_iso(raw)
+        if formatted and dt:
+            return formatted, dt
 
     print(f"    ! Kuupäeva ei leitud artiklilt: {url}")
-    return None
+    return None, None
 
 
 # ----------------------------------------------------------------------
@@ -433,6 +471,10 @@ def process_source(source):
         raise ValueError(f"Tundmatu allika tüüp: {source['type']}")
 
     seen, is_first_run = load_seen(source["seen_file"])
+    if source["type"] == "html":
+        # Vanad kirjed võivad sisaldada Delfi '?dsrc=...' sabaga linke -
+        # taandame kõik normaalkujule, et võrdlus klapiks.
+        seen = {normalize_url(u) for u in seen}
     if is_first_run:
         print(f"    * Esimene käivitus '{source['name']}' jaoks - postitan ainult kõige uuema episoodi.")
 
@@ -444,7 +486,18 @@ def process_source(source):
     if source["type"] == "html":
         for item in new_ones:
             if not item.get("date"):
-                item["date"] = fetch_article_date(item["link"])
+                item["date"], item["dt"] = fetch_article_date(item["link"])
+
+    # Ainult värsked episoodid: vanemad märgitud juba nähtuks, aga ei postitata.
+    now = datetime.now(timezone.utc)
+    fresh = []
+    for item in new_ones:
+        dt = item.get("dt")
+        if dt and now - dt > timedelta(hours=MAX_AGE_HOURS):
+            print(f"    - jätan postitamata (vanem kui {MAX_AGE_HOURS} h): {item['title']}")
+            continue
+        fresh.append(item)
+    new_ones = fresh
 
     for item in reversed(new_ones):  # vanim enne
         post_to_discord(item, username=source["name"], color=source["color"])
