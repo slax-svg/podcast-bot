@@ -4,9 +4,21 @@ on:
     # - cron: "0 */6 * * *"   - # käivitamine toimub nüüd cron-job.org kaudu
   workflow_dispatch: {}
 
+# Ilma selle õiguseta võib GITHUB_TOKEN olla read-only ja seen_ids failide
+# commit/push ebaõnnestub vaikselt - siis unustab bot iga kord, mida ta postitas.
+permissions:
+  contents: write
+
+# Kaks käivitust korraga (nt cron-job.org + käsitsi) ei tohi üksteist
+# kattuda, muidu teine ei näe esimese uuendatud seen-faili.
+concurrency:
+  group: podcast-bot
+  cancel-in-progress: false
+
 jobs:
   post:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,6 +29,7 @@ jobs:
           DISCORD_WEBHOOK_URL_PODCASTS: ${{ secrets.DISCORD_WEBHOOK_URL_PODCASTS }}
         run: python podcastid_to_discord.py
       - name: Save seen_ids files between runs
+        if: always()   # salvesta ka siis, kui skript vahepeal vea viskas
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "update podcastide seen ids"
