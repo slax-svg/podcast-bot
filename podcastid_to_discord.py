@@ -10,55 +10,26 @@ teadlikult eemaldatud, et Discordi kaart oleks lühike ja selge.
 
 Allikad:
   1. Unibet Stuudio   - anchor.fm RSS, filtreeritud "#Korvpall" sildi järgi
-                        (saates on ka jalgpalli episoode - "Jalkasaade" -
-                        mida me EI taha, seega otsime kirjeldusest hashtagi
-                        "#Korvpall", mille Unibet Stuudio ise lisab igale
-                        korvpalli-episoodile).
-  2. Mängumehed       - anchor.fm RSS, puhtalt korvpallipodcast, kõik
-                        episoodid postitatakse.
-  3. Pall ei valeta   - Delfi enda RSS-i-taoline API, puhtalt
-                        korvpallipodcast, kõik episoodid postitatakse.
-  4. Pihtas-põhjas    - Delfil pole avalikku RSS'i (audio on Tasku
-                        tellimuse taga), seega loeme nende AVALIKKU
-                        kategoorialehte (HTML), mis näitab iga uue
-                        episoodi anonss-artiklit. Postitame ainult
-                        pealkirja + lingi, mitte audiot.
-  5. Viies veerandaeg - Õhtulehe korvpallisaade, anchor.fm (Spotify for
-                        Creators) RSS, puhtalt korvpallipodcast, kõik
-                        episoodid postitatakse.
-  6. Saku Liigad      - Buzzsprout RSS (sama feed, mida kasutavad Apple
-                        Podcasts, Spotify jm), puhtalt korvpallipodcast,
-                        kõik episoodid postitatakse.
+  2. Mängumehed       - anchor.fm RSS, kõik episoodid
+  3. Pall ei valeta   - Delfi RSS, kõik episoodid
+  4. Pihtas-põhjas    - Delfi avalik kategoorialeht (HTML), pealkiri + link
+  5. Viies veerandaeg - anchor.fm RSS, episoodid numbriga >= 255
+  6. Saku Liigad      - Buzzsprout RSS, kõik episoodid
 
-Logod (avatar_url)
------------------------
-Discordi webhook API lubab iga postituse juures eraldi määrata nii
-"username" kui "avatar_url" - seega POLE vaja eraldi webhooki iga
-saate jaoks, piisab ühest. Logod on laetud repo "slax-svg/podcast-bot"
-kausta "logos/" ja neile viidatakse raw.githubusercontent.com kaudu.
+Logod (avatar_url) on laetud repo "slax-svg/podcast-bot" kausta "logos/"
+ja neile viidatakse raw.githubusercontent.com kaudu.
 
-Miks "esimesel käivitusel ainult viimane uus episood"
-----------------------------------------------------------
-Kui mõne allika jaoks pole veel seen_ids faili (uus allikas), siis
-esimesel käivitusel EI postitata kogu olemasolevat episoodide ajalugu -
-ainult kõige uuem episood postitatakse, ülejäänud märgitakse vaikselt
-"juba nähtuks".
+Esimesel käivitusel (kui seen_ids faili pole) postitatakse ainult kõige
+uuem episood, ülejäänud märgitakse vaikselt "nähtuks".
 
-Miks iga allikas on eraldi try/except sees
------------------------------------------------
-Kui üks allikas ebaõnnestub (nt Delfi muudab oma lehe struktuuri, või
-mõni server ajutiselt ei vasta), ei tohi see takistada teiste allikate
-postitamist. Viga logitakse selgelt, aga skript jätkab järgmise
-allikaga.
+Iga allikas on eraldi try/except sees, et üks viga ei takistaks teisi.
 
 Setup
 -----
 1. pip install feedparser requests beautifulsoup4
-2. Loo Discord webhook (üks, jagatud kõigi allikate vahel):
-   Kanal -> Redigeeri kanalit -> Integratsioonid -> Webhookid -> Uus -> Kopeeri URL
-3. Kleebi see URL alla WEBHOOK_URL kohale (või sea DISCORD_WEBHOOK_URL_PODCASTS env muutuja).
-4. Käivita: python podcastid_to_discord.py
-   Või kasuta GitHub Actionsit (vt kaasasolevat .yml faili).
+2. Loo Discord webhook ja sea env muutuja DISCORD_WEBHOOK_URL_PODCASTS
+   (või kleebi URL allpool WEBHOOK_URL kohale).
+3. Käivita: python podcastid_to_discord.py
 """
 
 import os
@@ -80,15 +51,15 @@ WEBHOOK_URL = os.environ.get(
     "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE",
 )
 
-# Logod laetud repost slax-svg/podcast-bot, kaustast logos/, harust "main".
-# Kui su vaikeharu kannab teist nime (nt "master"), muuda "main" vastavalt.
+LOGO_BASE = "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/"
+
 LOGO_URLS = {
-    "Unibet Stuudio": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/unibet.jpg",
-    "Mängumehed": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/mangumehed.png",
-    "Pall ei valeta": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/palleivaleta.jpg",
-    "Pihtas-põhjas": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/pihtas.png",
-    "Viies veerandaeg": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/viiesveerandaeg.jpg",
-    "Saku Liigad": "https://raw.githubusercontent.com/slax-svg/podcast-bot/main/logos/sakuliigad.jpg",
+    "Unibet Stuudio": LOGO_BASE + "unibet.jpg",
+    "Mängumehed": LOGO_BASE + "mangumehed.png",
+    "Pall ei valeta": LOGO_BASE + "palleivaleta.jpg",
+    "Pihtas-põhjas": LOGO_BASE + "pihtas.png",
+    "Viies veerandaeg": LOGO_BASE + "viiesveerandaeg.jpg",
+    "Saku Liigad": LOGO_BASE + "sakuliigad.jpg",
 }
 
 REQUEST_HEADERS = {
@@ -96,7 +67,10 @@ REQUEST_HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/html, */*",
+    "Accept": (
+        "application/rss+xml, application/atom+xml, "
+        "application/xml, text/html, */*"
+    ),
     "Accept-Language": "et-EE,et;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
@@ -104,15 +78,11 @@ MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 15
 
 # Maksimaalselt mitu episoodi postitatakse ühe allika kohta ühe käivituse
-# jooksul. Kui uusi on rohkem (nt aegunud seen-fail), postitatakse ainult
-# kõige uuem ja ülejäänud märgitakse vaikselt "nähtuks".
+# jooksul. Ülejäänud märgitakse vaikselt "nähtuks".
 MAX_NEW_PER_RUN = 1
 
 # Postitatakse ainult episoode, mis on avaldatud viimase N tunni jooksul.
-# Vanemad märgitakse vaikselt nähtuks. See on tagavara juhuks, kui seen-fail
-# peaks mingil põhjusel kaduma või ID-d ei klapi - vanad episoodid ei jõua
-# siis Discordi. Kui kuupäeva ei õnnestu kindlaks teha, postitatakse nagu
-# varem.
+# Kui kuupäeva ei õnnestu kindlaks teha, postitatakse nagu varem.
 MAX_AGE_HOURS = 48
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -126,17 +96,13 @@ DELFI_ARTICLE_LINK_RE = re.compile(r"/(?:artikkel|video)/\d{6,}")
 # ----------------------------------------------------------------------
 def normalize_url(url):
     """Eemaldab URL-ilt päringuparameetrid ja fragmendi (nt Delfi
-    '?dsrc=...' jälgimisparameeter). Sama artikkel tuleb Delfi lehelt
-    vahel lingina koos sabaga, vahel ilma - ilma normaliseerimiseta
-    loeks skript neid erinevateks artikliteks ja postitaks uuesti."""
+    '?dsrc=...' jälgimisparameeter)."""
     parts = urlsplit(url.strip())
     return f"{parts.scheme}://{parts.netloc}{parts.path}".rstrip("/")
 
 
 def load_seen(seen_file):
-    """Tagastab (seen_set, is_first_run). is_first_run=True, kui faili
-    veel polnud olemas või see oli tühi - sel juhul postitame edaspidi
-    ainult kõige uuema episoodi, mitte kogu ajalugu."""
+    """Tagastab (seen_set, is_first_run)."""
     if not os.path.exists(seen_file):
         return set(), True
     try:
@@ -146,7 +112,8 @@ def load_seen(seen_file):
             return set(), True
         return set(json.loads(content)), False
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"  ! {os.path.basename(seen_file)} oli vigane ({e}); alustan tühjalt.")
+        name = os.path.basename(seen_file)
+        print(f"  ! {name} oli vigane ({e}); alustan tühjalt.")
         return set(), True
 
 
@@ -187,14 +154,15 @@ def fetch_url(url, accept_header=None):
             last_error = str(e)
         if attempt < MAX_RETRIES:
             time.sleep(RETRY_DELAY_SECONDS)
-    raise RuntimeError(f"Kõik {MAX_RETRIES} katset ebaõnnestusid. Viimane viga: {last_error}")
+    raise RuntimeError(
+        f"Kõik {MAX_RETRIES} katset ebaõnnestusid. Viimane viga: {last_error}"
+    )
 
 
 def classify_new(items, seen, is_first_run):
     """Tavajuhul: tagastab kõik, mille id pole veel seen'is.
     Esimesel käivitusel: märgib KÕIK nähtuks, aga tagastab postitamiseks
-    ainult kõige esimese (=uusima, eeldusel et feed on uusim-enne
-    järjestuses) elemendi."""
+    ainult kõige esimese (=uusima) elemendi."""
     if is_first_run:
         for item in items:
             seen.add(item["id"])
@@ -206,16 +174,14 @@ def classify_new(items, seen, is_first_run):
 
     if len(new_ones) > MAX_NEW_PER_RUN:
         print(
-            f"    ! {len(new_ones)} uut korraga - postitan ainult {MAX_NEW_PER_RUN} "
-            f"uusimat, ülejäänud märgitud nähtuks."
+            f"    ! {len(new_ones)} uut korraga - postitan ainult "
+            f"{MAX_NEW_PER_RUN} uusimat, ülejäänud märgitud nähtuks."
         )
         return new_ones[:MAX_NEW_PER_RUN]
     return new_ones
 
 
 def post_to_discord(item, username, color):
-    # Ainult pealkiri (+ link) - kirjeldus/body text jäetakse teadlikult
-    # postitusest välja, et Discordi kaart oleks lühike ja selge.
     embed = {
         "title": item["title"],
         "url": item.get("link", ""),
@@ -239,14 +205,17 @@ def post_to_discord(item, username, color):
 
 
 # ----------------------------------------------------------------------
-# RSS/ATOM-PÕHISED ALLIKAD (Unibet Stuudio, Mängumehed, Pall ei valeta,
-# Viies veerandaeg, Saku Liigad)
+# RSS/ATOM-PÕHISED ALLIKAD
 # ----------------------------------------------------------------------
+RSS_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, */*"
+
+
 def fetch_rss_items(feed_url, filter_func=None, debug=True):
-    content, status = fetch_url(feed_url, accept_header="application/rss+xml, application/atom+xml, application/xml, */*")
+    content, status = fetch_url(feed_url, accept_header=RSS_ACCEPT)
     feed = feedparser.parse(content)
     if debug:
-        print(f"    Feed status: {status}, bozo: {getattr(feed, 'bozo', 'unknown')}, kirjeid: {len(feed.entries)}")
+        bozo = getattr(feed, "bozo", "unknown")
+        print(f"    Feed status: {status}, bozo: {bozo}, kirjeid: {len(feed.entries)}")
 
     items = []
     for entry in feed.entries:
@@ -276,21 +245,17 @@ def fetch_rss_items(feed_url, filter_func=None, debug=True):
 
 
 def unibet_korvpall_filter(title, description):
-    """Postitame ainult episoodid, mille kirjelduses on hashtag
-    '#Korvpall' - see eristab korvpalli-episoodid (Kossusaade) saates
-    olevatest jalgpalli-episoodidest (Jalkasaade)."""
+    """Postitame ainult episoodid, mille kirjelduses on hashtag '#Korvpall'."""
     return "#korvpall" in description.lower()
 
 
 EPISODE_NUM_RE = re.compile(r"^\s*(\d+)\.\s*osa", re.IGNORECASE)
-VIIES_VEERANDAEG_MIN_EPISODE = 255  # 255+ on seen_ids failis; vanemad (<255) ignoreeritakse
+VIIES_VEERANDAEG_MIN_EPISODE = 255
 
 
 def viies_veerandaeg_filter(title, description):
-    """Feedis on sadu vanu episoode, mille id-sid me seen-faili ei pannud.
-    Et need ei tuleks 'uutena' postitusse, lubame ainult episoodid
-    numbriga >= VIIES_VEERANDAEG_MIN_EPISODE (pealkiri: '284. osa: ...').
-    Numbrita pealkirjaga episoodid jäetakse vahele."""
+    """Lubame ainult episoodid numbriga >= VIIES_VEERANDAEG_MIN_EPISODE
+    (pealkiri: '284. osa: ...')."""
     m = EPISODE_NUM_RE.match(title)
     return bool(m) and int(m.group(1)) >= VIIES_VEERANDAEG_MIN_EPISODE
 
@@ -299,7 +264,9 @@ def viies_veerandaeg_filter(title, description):
 # HTML-PÕHINE ALLIKAS (Pihtas-põhjas - avalik Delfi kategoorialeht)
 # ----------------------------------------------------------------------
 def fetch_pihtaspohjas_items(page_url, debug=True):
-    content, status = fetch_url(page_url, accept_header="text/html,application/xhtml+xml,*/*")
+    content, status = fetch_url(
+        page_url, accept_header="text/html,application/xhtml+xml,*/*"
+    )
     soup = BeautifulSoup(content, "html.parser")
 
     seen_links = set()
@@ -310,10 +277,9 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
             continue
         if href.startswith("/"):
             href = "https://sport.delfi.ee" + href
-        href = normalize_url(href)  # eemalda ?dsrc=... jm
+        href = normalize_url(href)
 
-        # Ainult sport.delfi.ee artiklid - muud domeenid (nt tv.delfi.ee
-        # anonsid) ei ole podcasti episoodid.
+        # Ainult sport.delfi.ee artiklid.
         if not href.startswith("https://sport.delfi.ee/"):
             continue
 
@@ -323,7 +289,13 @@ def fetch_pihtaspohjas_items(page_url, debug=True):
         if href in seen_links:
             continue
         seen_links.add(href)
-        items.append({"id": href, "title": title, "link": href, "date": None, "dt": None})
+        items.append({
+            "id": href,
+            "title": title,
+            "link": href,
+            "date": None,
+            "dt": None,
+        })
 
     if debug:
         print(f"    HTML status: {status}, leitud artikleid: {len(items)}")
@@ -345,8 +317,7 @@ def _parse_iso(raw):
 
 
 def _format_iso_date(raw):
-    """'2026-09-23T14:30:00+03:00' -> 'Wed, 23 Sep 2026 14:30:00'
-    (sama kuju nagu RSS-allikatel, ilma ajavööndita). None, kui ei parsi."""
+    """'2026-09-23T14:30:00+03:00' -> 'Wed, 23 Sep 2026 14:30:00'."""
     if not raw:
         return None
     raw = raw.strip().replace("Z", "+00:00")
@@ -358,11 +329,8 @@ def _format_iso_date(raw):
 
 
 def fetch_article_date(url):
-    """Loeb Delfi artikli enda lehelt avaldamise kuupäeva. Kutsutakse ainult
-    UUTE artiklite peale (tavaliselt 0-1 tk käivituse kohta), mitte kogu
-    kategoorialehe kohta. Proovib järjest: meta-tagid, <time datetime>,
-    JSON-LD 'datePublished'. Tagastab (kuvatav_tekst, datetime) või
-    (None, None), kui midagi ei leia - siis postitatakse ilma kuupäevata."""
+    """Loeb Delfi artikli enda lehelt avaldamise kuupäeva. Tagastab
+    (kuvatav_tekst, datetime) või (None, None)."""
     try:
         resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
         if resp.status_code != 200:
@@ -407,6 +375,12 @@ def fetch_article_date(url):
 # ----------------------------------------------------------------------
 # ALLIKATE MÄÄRATLUS
 # ----------------------------------------------------------------------
+PALL_EI_VALETA_RSS = (
+    "https://media-api-podcast-worker.api.delfi.ee/"
+    "media-api-podcast-worker/v1/rss-feed/"
+    "e6b5f510-1866-430b-a945-5b4d785728c7.rss"
+)
+
 SOURCES = [
     {
         "name": "Unibet Stuudio",
@@ -427,7 +401,7 @@ SOURCES = [
     {
         "name": "Pall ei valeta",
         "type": "rss",
-        "url": "https://media-api-podcast-worker.api.delfi.ee/media-api-podcast-worker/v1/rss-feed/e6b5f510-1866-430b-a945-5b4d785728c7.rss",
+        "url": PALL_EI_VALETA_RSS,
         "filter": None,
         "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_pallteivaleta.json"),
         "color": 0xE84118,
@@ -462,7 +436,8 @@ SOURCES = [
 # PÕHIPROTSESS
 # ----------------------------------------------------------------------
 def process_source(source):
-    print(f"\n=== {source['name']} ===")
+    name = source["name"]
+    print(f"\n=== {name} ===")
 
     if source["type"] == "rss":
         items = fetch_rss_items(source["url"], filter_func=source.get("filter"))
@@ -474,9 +449,56 @@ def process_source(source):
     seen, is_first_run = load_seen(source["seen_file"])
 
     if source["type"] == "html":
-        # Vanad kirjed võivad sisaldada Delfi '?dsrc=...' sabaga linke -
-        # taandame kõik normaalkujule, et võrdlus klapiks.
+        # Taandame kõik vanad kirjed normaalkujule, et võrdlus klapiks.
         seen = {normalize_url(u) for u in seen}
 
     if is_first_run:
-        print(f"    * Esimene käivitus '{source['name']}' jaoks - postitan ainult kõige uuema
+        print(f"    * Esimene käivitus '{name}' jaoks.")
+        print("      Postitan ainult kõige uuema episoodi.")
+
+    new_ones = classify_new(items, seen, is_first_run)
+    print(f"    Uusi postitatavaid: {len(new_ones)}")
+
+    # HTML-allika kategoorialehel kuupäeva pole - loeme selle uute artiklite
+    # enda lehelt (ainult postitatavate kohta).
+    if source["type"] == "html":
+        for item in new_ones:
+            if not item.get("date"):
+                item["date"], item["dt"] = fetch_article_date(item["link"])
+
+    # Ainult värsked episoodid: vanemad märgitud juba nähtuks.
+    now = datetime.now(timezone.utc)
+    fresh = []
+    for item in new_ones:
+        dt = item.get("dt")
+        if dt and now - dt > timedelta(hours=MAX_AGE_HOURS):
+            print(f"    - jätan postitamata (vanem kui {MAX_AGE_HOURS} h): {item['title']}")
+            continue
+        fresh.append(item)
+    new_ones = fresh
+
+    for item in reversed(new_ones):  # vanim enne
+        post_to_discord(item, username=name, color=source["color"])
+        time.sleep(1)
+
+    save_seen(source["seen_file"], seen)
+
+
+def main():
+    if "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE" in WEBHOOK_URL:
+        raise SystemExit(
+            "Sea WEBHOOK_URL (või DISCORD_WEBHOOK_URL_PODCASTS env muutuja) "
+            "enne käivitamist!"
+        )
+
+    for source in SOURCES:
+        try:
+            process_source(source)
+        except Exception as e:
+            print(f"  !!! Viga allika '{source['name']}' töötlemisel, jätan vahele: {e}")
+
+    print("\nKõik allikad läbi töödeldud.")
+
+
+if __name__ == "__main__":
+    main()
