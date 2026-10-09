@@ -59,7 +59,7 @@ LOGO_URLS = {
     "Pall ei valeta": LOGO_BASE + "palleivaleta.jpg",
     "Pihtas-põhjas": LOGO_BASE + "pihtas.png",
     "Viies veerandaeg": LOGO_BASE + "viiesveerandaeg.jpg",
-    "Saku Liigad": LOGO_BASE + "sakuliigad.jpg",
+     "Saku Liigad": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ac/e7/c9/ace7c932-5d16-0861-c6b3-034ce3025d8b/mza_13110992284895373570.jpg/600x600bb.jpg",
 }
 
 REQUEST_HEADERS = {
