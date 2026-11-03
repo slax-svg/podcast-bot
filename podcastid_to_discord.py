@@ -15,7 +15,7 @@ Allikad:
   4. Pihtas-põhjas    - Delfi avalik kategoorialeht (HTML), pealkiri + link
   5. Viies veerandaeg - anchor.fm RSS, episoodid numbriga >= 255
   6. Saku Liigad      - Buzzsprout RSS, kõik episoodid
-  7. Kuues Mees       - RSS (aadress leitakse Apple Podcasts ID järgi), kõik episoodid
+  7. Kuues Mees       - Epicbet Eesti YouTube'i RSS, pealkirjas "Kuues Mees"
 
 Logod (avatar_url) on laetud repo "slax-svg/podcast-bot" kausta "logos/"
 ja neile viidatakse raw.githubusercontent.com kaudu.
@@ -246,29 +246,15 @@ def fetch_rss_items(feed_url, filter_func=None, debug=True):
     return items
 
 
-ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup?id={}&entity=podcast"
-
-
-def resolve_feed_url_from_apple(apple_id):
-    """Leiab podcasti RSS-voo aadressi Apple Podcasts ID järgi (iTunes
-    Lookup API väli 'feedUrl'). Nii ei pea Spotify for Creators'i
-    RSS-aadressi käsitsi teadma ja see jääb kehtima ka siis, kui
-    podcast vahetab hostingut."""
-    content, _ = fetch_url(
-        ITUNES_LOOKUP_URL.format(apple_id), accept_header="application/json"
-    )
-    data = json.loads(content)
-    for result in data.get("results", []):
-        feed_url = result.get("feedUrl")
-        if feed_url:
-            print(f"    RSS leitud Apple ID {apple_id} kaudu: {feed_url}")
-            return feed_url
-    raise RuntimeError(f"Apple ID {apple_id} kohta RSS-aadressi ei leitud.")
-
-
 def unibet_korvpall_filter(title, description):
     """Postitame ainult episoodid, mille kirjelduses on hashtag '#Korvpall'."""
     return "#korvpall" in description.lower()
+
+
+def kuues_mees_filter(title, description):
+    """Epicbet Eesti kanalil on ka muid videoid - võtame ainult need,
+    mille pealkirjas on 'Kuues Mees'."""
+    return "kuues mees" in title.lower()
 
 
 EPISODE_NUM_RE = re.compile(r"^\s*(\d+)\.\s*osa", re.IGNORECASE)
@@ -452,16 +438,10 @@ SOURCES = [
         "color": 0x1ABC9C,
     },
     {
-        # Spotify: https://open.spotify.com/show/7w0lPDXm4D87e2kMGCTg3q
-        # Apple:   https://podcasts.apple.com/ee/podcast/id6828521307
-        # RSS-aadress leitakse igal käivitusel Apple ID järgi.
-        # Esimesel käivitusel (seen-faili pole) postitatakse ainult uusim
-        # episood, ülejäänud märgitakse vaikselt nähtuks.
         "name": "Kuues Mees",
         "type": "rss",
-        "url": None,
-        "apple_id": "6828521307",
-        "filter": None,
+        "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiQcuEdI-XK72JkYQ1YtZoQ",
+        "filter": kuues_mees_filter,
         "seen_file": os.path.join(SCRIPT_DIR, "seen_ids_kuuesmees.json"),
         "color": 0xE67E22,
     },
@@ -476,14 +456,7 @@ def process_source(source):
     print(f"\n=== {name} ===")
 
     if source["type"] == "rss":
-        feed_url = source.get("url") or resolve_feed_url_from_apple(source["apple_id"])
-        items = fetch_rss_items(feed_url, filter_func=source.get("filter"))
-        # Kindluse mõttes uusim enne, et esimesel käivitusel postitataks
-        # tõesti kõige uuem episood (mitte voo järjekorras esimene).
-        items.sort(
-            key=lambda i: i["dt"] or datetime.min.replace(tzinfo=timezone.utc),
-            reverse=True,
-        )
+        items = fetch_rss_items(source["url"], filter_func=source.get("filter"))
     elif source["type"] == "html":
         items = fetch_pihtaspohjas_items(source["url"])
     else:
